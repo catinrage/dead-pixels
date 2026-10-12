@@ -1,0 +1,303 @@
+import { fmtX } from '../core/num';
+
+/** The Bit tree: bought with Bits from Defrag and Restore, kept through every Defrag and Restore. */
+
+export type BitArm = 'boot' | 'speed' | 'hunt' | 'idle' | 'kit';
+export const ARM: Record<BitArm, string> = { boot: 'Boot', speed: 'Throughput', hunt: 'Hunt', idle: 'Background', kit: 'Startup' };
+export const ARM_COLOR: Record<BitArm, string> = { boot: '#d8d0ff', speed: '#2bf0ff', hunt: '#ff3df2', idle: '#ffcc33', kit: '#4fe07a' };
+
+export interface BitNode {
+  id: string;
+  arm: BitArm;
+  x: number;
+  y: number;
+  max: number;
+  name: string;
+  icon: string;
+  /** [base, growth] in Bits. */
+  cost: [number, number?];
+  req: [string, number][];
+  /** Extra condition shown as a requirement. */
+  needs?: 'selectAll';
+  /** Takes effect when the next run starts. */
+  nextRun?: boolean;
+  about: string;
+  eff?: (l: number) => string;
+}
+
+export const SCANNER_R = [0, 40, 28, 19, 12, 7];
+
+export const BIT_NODES: readonly BitNode[] = [
+  {
+    id: 'b_boot',
+    arm: 'boot',
+    x: 0,
+    y: 0,
+    max: 1,
+    name: 'Boot Sector',
+    icon: 'chip',
+    cost: [0],
+    req: [],
+    about: 'Your Bits live here. Every Bit you earn also adds 2% ink for good, whether you spend it or not.',
+  },
+
+  {
+    id: 'b_cache',
+    arm: 'speed',
+    x: 0,
+    y: -1,
+    max: 15,
+    name: 'Cache',
+    icon: 'drop',
+    cost: [3, 1.75],
+    req: [['b_boot', 1]],
+    about: 'More ink from every pixel, in every run.',
+    eff: l => `All ink ${fmtX(1.25 ** l)}`,
+  },
+  {
+    id: 'b_clock',
+    arm: 'speed',
+    x: -1,
+    y: -2,
+    max: 15,
+    name: 'Clock Speed',
+    icon: 'bolt',
+    cost: [4, 1.75],
+    req: [['b_cache', 1]],
+    about: 'More damage from everything: tools, blasts, bugs and rigs.',
+    eff: l => `All damage ${fmtX(1.25 ** l)}`,
+  },
+  {
+    id: 'b_compress',
+    arm: 'speed',
+    x: 1,
+    y: -2,
+    max: 6,
+    name: 'Compression',
+    icon: 'bag',
+    cost: [12, 2.2],
+    req: [['b_cache', 2]],
+    about: 'Defrag, Restore and Dead Pixels pay more Bits.',
+    eff: l => `Bits +${15 * l}%`,
+  },
+  {
+    id: 'b_ecc',
+    arm: 'speed',
+    x: -1,
+    y: -3,
+    max: 5,
+    name: 'Error Correction',
+    icon: 'sparkle',
+    cost: [15, 2],
+    req: [['b_clock', 2]],
+    about: 'Eraser and Brush strikes crit more often. A crit deals 5× damage and one-shots static.',
+    eff: l => `+${3 * l}% crit chance`,
+  },
+  {
+    id: 'b_quick',
+    arm: 'speed',
+    x: 0,
+    y: -3,
+    max: 2,
+    name: 'Quick Defrag',
+    icon: 'clock',
+    cost: [20, 3],
+    req: [['b_compress', 1]],
+    about: 'Defrag opens earlier in every picture.',
+    eff: l => `Defrag at ${25 - 2.5 * l}% revealed`,
+  },
+  {
+    id: 'b_turbo',
+    nextRun: true,
+    arm: 'speed',
+    x: 1,
+    y: -3,
+    max: 3,
+    name: 'Turbo Boot',
+    icon: 'arrow',
+    cost: [10, 2.5],
+    req: [['b_compress', 1]],
+    about: 'Every run starts hot: double ink and damage for its first minutes.',
+    eff: l => `×2 for the first ${3 * l} minutes`,
+  },
+
+  {
+    id: 'b_scanner',
+    arm: 'hunt',
+    x: 1,
+    y: 0,
+    max: 5,
+    name: 'Scanner',
+    icon: 'radar',
+    cost: [5, 2.2],
+    req: [['b_boot', 1]],
+    about: 'Marks a circle on the minimap where the Dead Pixel hides. Each level shrinks the circle.',
+    eff: l => `Search circle radius ${SCANNER_R[l]}`,
+  },
+  {
+    id: 'b_sense',
+    arm: 'hunt',
+    x: 2,
+    y: -1,
+    max: 1,
+    name: 'Pixel Sense',
+    icon: 'eye',
+    cost: [12],
+    req: [['b_scanner', 1]],
+    about: 'When the Dead Pixel is within 24 pixels, an arrow next to you points at it.',
+  },
+  {
+    id: 'b_freeze',
+    arm: 'hunt',
+    x: 2,
+    y: 1,
+    max: 3,
+    name: 'Freeze Frame',
+    icon: 'shield',
+    cost: [8, 2],
+    req: [['b_scanner', 1]],
+    about: 'A Dead Pixel you expose by hand stays out longer before it dives back in.',
+    eff: l => `${10 + 4 * l}s to catch it`,
+  },
+  {
+    id: 'b_bounty',
+    arm: 'hunt',
+    x: 3,
+    y: 0,
+    max: 4,
+    name: 'Bounty',
+    icon: 'gem',
+    cost: [10, 2],
+    req: [['b_scanner', 2]],
+    about: 'Catching a Dead Pixel pays more Bits.',
+    eff: l => `Dead Pixel Bits +${50 * l}%`,
+  },
+
+  {
+    id: 'b_bgproc',
+    arm: 'idle',
+    x: 0,
+    y: 1,
+    max: 5,
+    name: 'Background Process',
+    icon: 'gear',
+    cost: [5, 1.9],
+    req: [['b_boot', 1]],
+    about: 'Machines earn more while the game is closed.',
+    eff: l => `Offline at ${50 + 10 * l}% speed`,
+  },
+  {
+    id: 'b_sleep',
+    arm: 'idle',
+    x: -1,
+    y: 2,
+    max: 4,
+    name: 'Sleep Mode',
+    icon: 'clock',
+    cost: [8, 2],
+    req: [['b_bgproc', 1]],
+    about: 'Machines keep earning longer while the game is closed.',
+    eff: l => `Offline for up to ${8 + 4 * l} hours`,
+  },
+  {
+    id: 'b_daemon',
+    arm: 'idle',
+    x: 1,
+    y: 2,
+    max: 10,
+    name: 'Daemon',
+    icon: 'critter',
+    cost: [10, 1.9],
+    req: [['b_bgproc', 1]],
+    about: 'Bugs and rigs work harder in every run.',
+    eff: l => `Machine damage ${fmtX(1.25 ** l)}`,
+  },
+  {
+    id: 'b_marquee',
+    arm: 'idle',
+    x: 0,
+    y: 3,
+    max: 2,
+    name: 'Marquee',
+    icon: 'marquee',
+    cost: [40, 2.5],
+    req: [['b_daemon', 1]],
+    needs: 'selectAll',
+    about: 'Select All opens earlier in every picture.',
+    eff: l => `Select All at ${90 - 5 * l}% revealed`,
+  },
+
+  {
+    id: 'b_warm',
+    nextRun: true,
+    arm: 'kit',
+    x: -1,
+    y: 0,
+    max: 6,
+    name: 'Warm Start',
+    icon: 'bag',
+    cost: [3, 2.2],
+    req: [['b_boot', 1]],
+    about: 'Start every run with gray ink in the bank.',
+    eff: l => `Start with ${50 * 4 ** (l - 1)} gray ink`,
+  },
+  {
+    id: 'b_firmware',
+    nextRun: true,
+    arm: 'kit',
+    x: -2,
+    y: -1,
+    max: 5,
+    name: 'Firmware',
+    icon: 'eraser',
+    cost: [8, 2.2],
+    req: [['b_warm', 1]],
+    about: 'Start every run with Sharp Edge and Ink Press already upgraded.',
+    eff: l => `Both start at level ${2 * l}`,
+  },
+  {
+    id: 'b_incubator',
+    nextRun: true,
+    arm: 'kit',
+    x: -2,
+    y: 1,
+    max: 5,
+    name: 'Incubator',
+    icon: 'critter',
+    cost: [10, 2.3],
+    req: [['b_warm', 1]],
+    about: 'Start every run with the Hatchery open and bugs already digging.',
+    eff: l => `Start with ${l} bug${l > 1 ? 's' : ''}`,
+  },
+  {
+    id: 'b_prefab',
+    nextRun: true,
+    arm: 'kit',
+    x: -3,
+    y: 1,
+    max: 3,
+    name: 'Prefab Rigs',
+    icon: 'rig',
+    cost: [25, 2.5],
+    req: [['b_incubator', 1]],
+    about: 'Start every run with Drill Rigs unlocked and rigs already grinding near the center.',
+    eff: l => `Start with ${l} rig${l > 1 ? 's' : ''}`,
+  },
+  {
+    id: 'b_swap',
+    arm: 'kit',
+    x: -3,
+    y: 0,
+    max: 5,
+    name: 'Swap File',
+    icon: 'chain',
+    cost: [15, 2.2],
+    req: [['b_warm', 2]],
+    about: 'Keep part of your ink through Defrag and Restore.',
+    eff: l => `Keep ${5 * l}% of every ink`,
+  },
+];
+
+export const BIT_NODE: Record<string, BitNode> = Object.fromEntries(BIT_NODES.map(n => [n.id, n]));
+
+export const bitCost = (n: BitNode, l: number): number => Math.ceil(n.cost[0] * (n.cost[1] || 1) ** l);

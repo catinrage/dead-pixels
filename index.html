@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dead Pixels</title>
+<meta name="description" content="A pixel incremental: erase a corrupted picture, hunt its Dead Pixel, and restore a lost photo folder.">
+<meta name="theme-color" content="#08070e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 9 9%22 shape-rendering=%22crispEdges%22%3E%3Crect width=%229%22 height=%229%22 fill=%22%2308070e%22/%3E%3Crect x=%222%22 y=%222%22 width=%225%22 height=%225%22 fill=%22%23efe9ff%22/%3E%3Crect x=%223%22 y=%223%22 width=%223%22 height=%223%22 fill=%22%23000%22/%3E%3Crect x=%221%22 y=%224%22 width=%221%22 height=%221%22 fill=%22%23ff3df2%22/%3E%3Crect x=%227%22 y=%224%22 width=%221%22 height=%221%22 fill=%22%232bf0ff%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+10&family=Pixelify+Sans:wght@400;500;600;700&family=VT323&display=swap">
+</head>
+<body>
+<canvas id="game" aria-label="Game world"></canvas>
+
+<div id="hud">
+  <div id="inks" class="inks" aria-live="off"></div>
+  <div id="toasts" aria-live="polite"></div>
+  <div class="tr">
+    <div class="mapbox px live">
+      <canvas id="minimap" width="192" height="192" aria-label="Minimap of the picture"></canvas>
+      <div class="reveal-row"><span id="img-name" class="file-name">???</span><b id="reveal-pct">0.0%</b></div>
+      <div class="bar" aria-hidden="true"><i id="reveal-fill"></i><em id="mark-defrag"></em><em id="mark-select" class="sel" hidden></em></div>
+      <div class="dp-line" id="dp-line"><i></i><span id="dp-text">A Dead Pixel hides here</span></div>
+      <div class="reveal-actions">
+        <button type="button" id="btn-select" class="btn px btn-defrag" hidden>Select All <kbd>Ctrl A</kbd></button>
+        <button type="button" id="btn-restore" class="btn px btn-defrag btn-hot hot" hidden>Restore</button>
+        <button type="button" id="btn-defrag" class="btn px btn-defrag btn-hot" hidden>Defrag</button>
+      </div>
+    </div>
+    <nav class="menu live" aria-label="Menus">
+      <button type="button" class="mbtn px" data-panel="tree" aria-label="Upgrades"><img data-icon="tree" alt=""><span>Upgrades</span><kbd>U</kbd><em class="badge" id="badge-tree" hidden>0</em></button>
+      <button type="button" class="mbtn px" data-panel="bits" aria-label="Bit tree" id="menu-bits" hidden><img data-icon="chip" alt=""><span>Bit tree</span><kbd>B</kbd><em class="badge" id="badge-bits" hidden>0</em></button>
+      <button type="button" class="mbtn px" data-panel="gallery" aria-label="Gallery" id="menu-gallery"><img data-icon="gallery" alt=""><span>Gallery</span><kbd>G</kbd></button>
+      <button type="button" class="mbtn px" data-panel="auto" aria-label="Automation"><img data-icon="critter" alt=""><span>Automation</span><kbd>C</kbd></button>
+      <button type="button" class="mbtn px" data-panel="help" aria-label="Field guide"><img data-icon="help" alt=""><span>Field guide</span><kbd>H</kbd></button>
+      <button type="button" class="mbtn px" data-panel="settings" aria-label="Settings"><img data-icon="gear" alt=""><span>Settings</span><kbd>O</kbd></button>
+    </nav>
+  </div>
+  <div id="goal" class="goal px live"><span class="goal-k">Next goal</span><p id="goal-text">Hold the mouse on the world to erase toward it.</p></div>
+  <div id="tool-tip" class="tool-tip px"></div>
+  <div id="hotbar" class="hotbar live" role="toolbar" aria-label="Tools"></div>
+</div>
+
+<section id="tree" class="overlay tree" hidden aria-label="Upgrade trees">
+  <header class="tree-head">
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab px" role="tab" id="tab-run" data-tab="run" aria-selected="true"><img data-icon="tree" alt=""><span>Upgrades</span><em class="badge" id="tab-badge-run" hidden>0</em></button>
+      <button type="button" class="tab px" role="tab" id="tab-bits" data-tab="bits" aria-selected="false"><img data-icon="chip" alt=""><span>Bit tree</span><em class="badge" id="tab-badge-bits" hidden>0</em></button>
+    </div>
+    <div class="legend" id="tree-legend"></div>
+    <p class="tree-sub" id="tree-sub"></p>
+    <div class="tree-tools">
+      <button type="button" class="btn px" id="tree-center" aria-label="Center the tree">Center</button>
+      <button type="button" class="btn px" data-close>Close <kbd>Esc</kbd></button>
+    </div>
+  </header>
+  <div id="tree-view">
+    <div id="tree-world"><svg id="tree-links" aria-hidden="true"></svg><div id="tree-nodes"></div></div>
+    <aside id="node-card" class="node-card px" aria-live="polite">
+      <div class="nc-head"><img id="nc-icon" alt=""><div><span class="nc-br" id="nc-br"></span><h3 id="nc-name">Upgrade</h3></div><span class="nc-lv" id="nc-lv"></span></div>
+      <p class="nc-about" id="nc-about"></p>
+      <p class="nc-eff" id="nc-eff"></p>
+      <p class="nc-next" id="nc-next" hidden>Takes effect when your next run starts.</p>
+      <p class="nc-req" id="nc-req"></p>
+      <div class="costs" id="nc-cost"></div>
+      <button type="button" class="btn px btn-primary" id="nc-buy">Buy</button>
+      <p class="nc-hint">Drag to pan, scroll or pinch to zoom. Click a node to buy it. On touch, tap to inspect and tap again to buy.</p>
+    </aside>
+  </div>
+</section>
+
+<section id="gallery" class="overlay gallery" hidden aria-label="Gallery">
+  <header class="tree-head">
+    <h2 id="gal-title">Gallery</h2>
+    <p class="tree-sub" id="gal-sub">Your lost photo folder. Restore a picture to keep its perk for good.</p>
+    <div class="tree-tools"><button type="button" class="btn px" data-close id="gal-close">Close <kbd>Esc</kbd></button></div>
+  </header>
+  <div class="gal-body">
+    <p class="chooser-note" id="gal-note" hidden></p>
+    <div class="gal-grid" id="gal-grid"></div>
+    <section class="journal" id="journal"><h3>Recovered notes</h3><div id="frags" class="journal"></div></section>
+  </div>
+</section>
+
+<aside id="auto" class="drawer" hidden aria-label="Automation">
+  <div class="drawer-head"><h2>Automation</h2><button type="button" class="btn px" data-close>Close <kbd>C</kbd></button></div>
+  <p class="lede">Bugs and machines that dig while you do something else. While this page is closed they keep earning ink at reduced speed.</p>
+  <section class="sec is-locked" id="sec-crit">
+    <h3><img data-icon="critter" alt="">Bugs</h3>
+    <p class="lock-note">Hatch them with <b>Hatchery</b> in the green Swarm branch, or start every run with them through <b>Incubator</b> in the Bit tree.</p>
+    <div class="sec-body">
+      <p>Bugs tunnel to the nearest pixels on their diet and chew through them. Their tunnels scare the Dead Pixel.</p>
+      <div class="row"><span>Bugs</span><b id="crit-n">0</b></div>
+      <div class="row"><span>Bite damage</span><b id="crit-dmg">0</b></div>
+      <div class="row"><span>Bites per second</span><b id="crit-rate">0</b></div>
+      <button type="button" class="btn px wide" id="crit-buy"><span>Hatch a bug</span><span class="costs" id="crit-cost"></span></button>
+    </div>
+  </section>
+  <section class="sec" id="sec-diet">
+    <h3><img data-icon="brain" alt="">Diet rules</h3>
+    <p id="diet-note"></p>
+    <div class="diet" id="diet"></div>
+  </section>
+  <section class="sec is-locked" id="sec-rig">
+    <h3><img data-icon="rig" alt="">Drill rigs</h3>
+    <p class="lock-note">Build them with <b>Drill Rigs</b> in the gold Precision branch.</p>
+    <div class="sec-body">
+      <p>Rigs stay where you build them and grind the nearest pixels on the diet.</p>
+      <div class="row"><span>Rigs</span><b id="rig-n">0</b></div>
+      <div class="row"><span>Damage per second</span><b id="rig-dps">0</b></div>
+      <div class="row"><span>Radius</span><b id="rig-r">0</b></div>
+      <button type="button" class="btn px wide" id="rig-buy"><span>Build a rig where you stand</span><span class="costs" id="rig-cost"></span></button>
+      <button type="button" class="btn px wide" id="rig-gather"><span>Move every rig to me</span></button>
+    </div>
+  </section>
+  <section class="sec is-locked" id="sec-mine">
+    <h3><img data-icon="bomb" alt="">Mine layer</h3>
+    <p class="lock-note">Unlock <b>Mine Layer</b> in the red Demolition branch.</p>
+    <div class="sec-body">
+      <p>Drops a free bomb on a wall near you on a timer.</p>
+      <div class="row"><span>One bomb every</span><b id="mine-int">0s</b></div>
+    </div>
+  </section>
+  <section class="sec is-locked" id="sec-trans">
+    <h3><img data-icon="flask" alt="">Transmuter</h3>
+    <p class="lock-note">Unlock <b>Transmuter</b> in the blue Alchemy branch.</p>
+    <div class="sec-body">
+      <p>Every second it takes a slice of whichever ink you hold the most of and turns it into the ink you pick.</p>
+      <div class="diet" id="trans-targets"></div>
+      <div class="row"><span>Converting</span><b id="trans-rate">0</b></div>
+      <button type="button" class="btn px wide" id="trans-toggle" aria-pressed="false"><span>Start transmuting</span></button>
+    </div>
+  </section>
+</aside>
+
+<aside id="help" class="drawer" hidden aria-label="Field guide">
+  <div class="drawer-head"><h2>Field guide</h2><button type="button" class="btn px" data-close>Close <kbd>H</kbd></button></div>
+  <p class="lede">Each picture in the folder was corrupted on purpose. Every pixel you erase is gone for good, and the photo underneath shows through.</p>
+  <section class="sec">
+    <h3>Controls</h3>
+    <dl class="keys">
+      <dt><kbd>Hold mouse</kbd></dt><dd>Use your tool toward the cursor. With the Eraser and Brush you walk as you erase.</dd>
+      <dt><kbd>Touch</kbd></dt><dd>Hold a finger on the world. Pinch to zoom.</dd>
+      <dt><kbd>WASD</kbd></dt><dd>Move freely</dd>
+      <dt><kbd>1 – 6</kbd> <kbd>Q</kbd> <kbd>E</kbd></dt><dd>Eraser, Brush, Bombs, Laser, Prism, Smudge</dd>
+      <dt><kbd>Right click</kbd> <kbd>T</kbd></dt><dd>Tune the laser to one color</dd>
+      <dt><kbd>U</kbd> <kbd>B</kbd> <kbd>G</kbd></dt><dd>Upgrades, Bit tree, Gallery</dd>
+      <dt><kbd>C</kbd> <kbd>O</kbd></dt><dd>Automation, Settings</dd>
+      <dt><kbd>Ctrl A</kbd></dt><dd>Select All, once you have it</dd>
+      <dt><kbd>Wheel</kbd> <kbd>+ −</kbd></dt><dd>Zoom</dd>
+      <dt><kbd>M</kbd></dt><dd>Music on or off</dd>
+    </dl>
+  </section>
+  <section class="sec">
+    <h3>Pixels</h3>
+    <ul class="guide">
+      <li><i style="--c: #8a8ea3"></i><span><b>Dust, stone, dense and core rock.</b> Gray filler. It gets harder, and pays more, the farther you go from the center.</span></li>
+      <li><i style="--c: var(--c-red)"></i><span><b>Red</b> explodes when it breaks and can set off the reds around it, until the chain fizzles.</span></li>
+      <li><i style="--c: var(--c-blue)"></i><span><b>Blue</b> is liquid. It is weak and it flows into your tunnels.</span></li>
+      <li><i style="--c: var(--c-green)"></i><span><b>Green</b> is alive. It regrows into empty space next to it.</span></li>
+      <li><i style="--c: var(--c-gold)"></i><span><b>Gold</b> is hard and rare. It pays for the Precision branch.</span></li>
+      <li><i style="--c: var(--glitch-m)"></i><span><b>Glitch</b> drops shards and scrambles the pixels around it into random colors.</span></li>
+      <li><i style="--c: #c8ccde"></i><span><b>Static</b> (Spiral Galaxy) jumps away from any hit that does not delete it at once. Hit it hard: bombs, crits, big brushes. It pays shards.</span></li>
+      <li><i style="--c: #a8e2ff"></i><span><b>Ice</b> (Moon Lake) is tough, but breaking one shatters its whole cluster. Explosions melt it into blue.</span></li>
+    </ul>
+  </section>
+  <section class="sec">
+    <h3>The Dead Pixel</h3>
+    <p>Every picture hides one black pixel that cannot be erased. Buried in rock it only flickers now and then. Erase a pixel next to it <b>by hand</b> and it is exposed for a few seconds: click it to delete it for <b>Bits</b> and a recovered note. Bombs, bugs and rigs that open it up make it flee deeper. The Scanner and Pixel Sense in the Bit tree help you find it.</p>
+  </section>
+  <section class="sec">
+    <h3>Strategies</h3>
+    <ul class="guide">
+      <li><i style="--c: var(--c-red)"></i><span><b>Demolition</b> runs on red ink. Bombs, chain reactions and payouts from explosions.</span></li>
+      <li><i style="--c: var(--c-gold)"></i><span><b>Precision</b> runs on gold. A tunable laser, clean cuts and drill rigs that work alone.</span></li>
+      <li><i style="--c: var(--c-green)"></i><span><b>Swarm</b> runs on green. Bugs that tunnel by themselves and multiply your ink.</span></li>
+      <li><i style="--c: var(--c-blue)"></i><span><b>Alchemy</b> runs on blue. The Prism cracks rock and turns gray into colors, and the Transmuter turns any ink into the one you need.</span></li>
+      <li><i style="--c: var(--c-shard)"></i><span><b>Hybrid</b> nodes sit between two branches and reward mixing them.</span></li>
+    </ul>
+  </section>
+  <section class="sec">
+    <h3>Defrag, Select All, Restore</h3>
+    <p><b>Defrag</b> opens at 20% revealed. It wipes the run (ink, upgrades, machines) for <b>Bits</b>: one for every percent past 10. Bits buy the Bit tree, which lasts through everything, and every Bit you earn adds 2% ink for good. Tools you unlocked stay yours.</p>
+    <p><b>Select All</b> unlocks the first time you reveal 90% of a picture. Once that picture's Dead Pixel is gone, it clears the rest in one sweep. Then <b>Restore</b> the picture for 90 Bits, its perk, and the next file in the folder.</p>
+    <p>A new picture is harder than the last. If you stall before Defrag opens, switch to a picture you already restored from the <b>Gallery</b> and replay it for Bits. Leaving a run early pays nothing, but your Bits and tools stay.</p>
+  </section>
+</aside>
+
+<aside id="settings" class="drawer" hidden aria-label="Settings">
+  <div class="drawer-head"><h2>Settings</h2><button type="button" class="btn px" data-close>Close <kbd>O</kbd></button></div>
+  <section class="sec">
+    <h3>Music</h3>
+    <div class="row"><span>Lo-fi soundtrack</span><button type="button" class="tog px" id="music-tog" aria-pressed="true">On</button></div>
+    <div class="row"><label for="music-vol">Volume</label><input type="range" id="music-vol" min="0" max="1" step="0.05"></div>
+    <div class="row"><span>Track</span><div class="seg" id="tracks"></div></div>
+    <p>Four takes generated with ElevenLabs. Pick the one you like best.</p>
+  </section>
+  <section class="sec">
+    <h3>Sound effects</h3>
+    <div class="row"><span>Effects</span><button type="button" class="tog px" id="sfx-tog" aria-pressed="true">On</button></div>
+    <div class="row"><label for="sfx-vol">Volume</label><input type="range" id="sfx-vol" min="0" max="1" step="0.05"></div>
+  </section>
+  <section class="sec">
+    <h3>Play</h3>
+    <div class="row"><span>Walk while erasing</span><button type="button" class="tog px" id="walk-tog" aria-pressed="true">On</button></div>
+    <div class="row"><span>Screen shake</span><button type="button" class="tog px" id="shake-tog" aria-pressed="true">On</button></div>
+    <div class="row"><span>Zoom</span><div class="seg"><button type="button" id="zoom-out" class="px" aria-label="Zoom out">−</button><button type="button" id="zoom-in" class="px" aria-label="Zoom in">+</button></div></div>
+  </section>
+  <section class="sec">
+    <h3>Progress</h3>
+    <div class="row"><span>Pixels erased</span><b id="st-del">0</b></div>
+    <div class="row"><span>Explosions</span><b id="st-exp">0</b></div>
+    <div class="row"><span>Time played</span><b id="st-time">0m</b></div>
+    <div class="row"><span>Defrags</span><b id="st-def">0</b></div>
+    <div class="row"><span>Pictures restored</span><b id="st-res">0</b></div>
+    <div class="row"><span>Dead Pixels caught</span><b id="st-dp">0</b></div>
+    <div class="row"><span>Bits earned</span><b id="st-bits">0</b></div>
+  </section>
+  <section class="sec">
+    <h3>Save</h3>
+    <p>Progress saves in this browser every 20 seconds and when you leave. Copy the save code to move it to another browser.</p>
+    <div class="start-actions"><button type="button" class="btn px" id="save-now">Save now</button><button type="button" class="btn px" id="save-export">Copy save code</button><button type="button" class="btn px" id="save-import">Load a save code</button></div>
+    <div class="start-actions"><button type="button" class="btn px btn-danger" id="reset">Start over</button></div>
+  </section>
+  <p class="fine" id="version"></p>
+</aside>
+
+<div id="start" class="overlay start">
+  <div class="start-card px">
+    <p class="eyebrow">A pixel incremental · v0.2</p>
+    <h1 class="title">Dead Pixels</h1>
+    <p class="tag">A folder of photos was corrupted one night, file by file. You are the cursor that erases the corruption. Dig outward, collect ink, hunt the Dead Pixel hiding in each picture, and restore what was lost.</p>
+    <dl class="keys">
+      <dt><kbd>Hold mouse</kbd></dt><dd>Erase toward the cursor. Touch works too.</dd>
+      <dt><kbd>WASD</kbd></dt><dd>Move</dd>
+      <dt><kbd>1 – 6</kbd></dt><dd>Switch tools as you unlock them</dd>
+      <dt><kbd>U</kbd></dt><dd>Open the upgrades</dd>
+    </dl>
+    <div class="start-actions"><button type="button" class="btn px btn-primary" id="start-btn">Start erasing</button><span class="fine" id="start-note"></span></div>
+    <p class="fine">Soundtrack made with ElevenLabs. Turn it off in Settings.</p>
+  </div>
+</div>
+
+<div id="modal" class="overlay modal" hidden>
+  <div class="modal-card px" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h2 id="modal-title">Dead Pixels</h2>
+    <div id="modal-body"></div>
+    <div class="modal-actions" id="modal-actions"></div>
+  </div>
+</div>
+
+<div id="moment" class="moment" hidden></div>
+
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

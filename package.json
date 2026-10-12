@@ -1,0 +1,27 @@
+{
+  "name": "dead-pixels",
+  "version": "0.2.0",
+  "private": true,
+  "description": "A pixel-art incremental about deleting a corrupted picture.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "build:artifact": "vite build --mode single && bun scripts/artifact.ts",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "bun test tests/unit",
+    "test:e2e": "playwright test",
+    "balance": "bun scripts/balance.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@playwright/test": "1.56.1",
+    "@types/bun": "1.4.2",
+    "typescript": "5.9.3",
+    "vite": "8.3.1",
+    "vite-plugin-singlefile": "2.3.3"
+  }
+}
